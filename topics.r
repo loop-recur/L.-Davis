@@ -2,9 +2,11 @@ library(tm)
 library(lda)
 library(LDAvis)
 
-fileName <- "recreation-focus-group.txt"
+fileName <- "haskell-chat.txt"
 transcript <- readChar(fileName, file.info(fileName)$size)
-corp <- Corpus(VectorSource(transcript))
+paragraphs <- strsplit(transcript, "\n")[[1]]
+
+corp <- Corpus(VectorSource(paragraphs))
 
 dtm.control <- list(
   tolower = TRUE,
