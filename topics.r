@@ -1,5 +1,5 @@
 library(tm)
-library(topicmodels)
+library(lda)
 library(LDAvis)
 
 fileName <- "recreation-focus-group.txt"
@@ -10,7 +10,7 @@ dtm.control <- list(
   tolower = TRUE,
   removePunctuation = TRUE,
   removeNumbers = TRUE,
-  stopwords = c(stopwords("english")
+  stopwords = c(stopwords("SMART")
                 # extendedstopwords,
                 #namez
                 ),
@@ -20,33 +20,29 @@ dtm.control <- list(
 
 dtm <- DocumentTermMatrix(corp, control = dtm.control)
 
-burnin <- 500
-iter <- 1000
+vocab <- dtm$dimnames$Terms
+
+burnin <- 800
+G <- 5000
 keep <- 30
 
 k <- 10
-mods <- LDA(dtm, k, method = "Gibbs",
-            control = list(burnin = burnin,
-                           iter = iter,
-                           keep = keep))
+alpha <- 0.02
+eta <- 0.02
 
-doc.id <- mods@wordassignments$i
-token.id <- mods@wordassignments$j
-topic.id <- mods@wordassignments$v
-vocab <- mods@terms
+fit <- lda.collapsed.gibbs.sampler(documents = list(rbind(as.integer(dtm$v), as.integer(dtm$j))),
+                                   K = k, vocab = vocab,
+                                   num.iterations = G, alpha = alpha,
+                                   eta = eta, initial = NULL, burnin = 0,
+                                   compute.log.likelihood = TRUE)
 
-# phi <- t(apply(t(topics(mods)) + 0.02, 2, function(x) x/sum(x)))
-# theta <- t(apply(mods@wordassignments + 0.02, 2, function(x) x/sum(x)))
-# dat <- getProbs(token.id, doc.id, topic.id, vocab, K = max(topic.id), sort.topics = "byTerms")
-# phi <- t(dat$phi.hat)
-# theta <- dat$theta.hat[, dat$topic.order]
+theta <- t(apply(fit$document_sums + alpha, 2, function(x) x/sum(x)))
+phi <- t(apply(t(fit$topics) + eta, 2, function(x) x/sum(x)))
 
-zson <- createJSON(K = K,
-                   phi = mods@beta,
-                   theta = mods@gamma,
+json <- createJSON(phi = phi,
+                   theta = theta,
                    doc.length = sum(dtm),
-                   term.frequency = as.numeric(table(token.id)),
-                   topic.proportion = as.numeric(table(topic.id)/length(topic.id)),
-                   vocab = vocab)
+                   vocab = matrix(unlist(vocab), nrow=1),
+                   term.frequency = dtm$v)
 
-serVis(zson)
+serVis(json)
