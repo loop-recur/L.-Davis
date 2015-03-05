@@ -16,7 +16,7 @@ transcript <- tolower(transcript)  # force to lowercase
 transcript <- gsub("\\b[[:alnum:]]{1,4}\\b", " ", transcript)  # remove short words
 
 # tokenize on space and output as a list:
-doc.list <- strsplit(transcript, "[[:space:]]+")
+doc.list <- lapply(strsplit(transcript, "[[:space:]]+"), stemDocument)
 
 # compute the table of terms:
 term.table <- table(unlist(doc.list))
