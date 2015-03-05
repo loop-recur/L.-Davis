@@ -1,19 +1,19 @@
 # read in some stopwords:
 library(tm)
-stop_words <- stopwords("SMART")
+stop_words <- append(stopwords("en"), stopwords("SMART"))
 
 fileName <- "data/haskell-chat.txt"
 transcript <- readChar(fileName, file.info(fileName)$size)
 
 # pre-processing:
 transcript <- gsub("'", "", transcript)  # remove apostrophes
+transcript <- gsub("[0-9]", "", transcript)  # remove numbers
 transcript <- gsub("[[:punct:]]", " ", transcript)  # replace punctuation with space
 transcript <- gsub("[[:cntrl:]]", " ", transcript)  # replace control characters with space
 transcript <- gsub("^[[:space:]]+", "", transcript) # remove whitespace at beginning of documents
 transcript <- gsub("[[:space:]]+$", "", transcript) # remove whitespace at end of documents
 transcript <- tolower(transcript)  # force to lowercase
-
-######paragraphs <- strsplit(transcript, "\n")[[1]]
+transcript <- gsub("\\b[[:alnum:]]{1,4}\\b", " ", transcript)  # remove short words
 
 # tokenize on space and output as a list:
 doc.list <- strsplit(transcript, "[[:space:]]+")
