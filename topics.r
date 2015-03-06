@@ -34,10 +34,14 @@ eta <- 0.02
 # Fit the model:
 library(lda)
 
-foo <- lapply(1:nrow(dtm), function (i) rbind(1:ncol(dtm), t(dtm[i,])) )
+lda.input <- lapply(1:nrow(dtm), function (i) {
+    docfreq <- t(dtm[i,])
+    keepers <- docfreq > 0
+    rbind( (0:(ncol(dtm)-1))[keepers], t(dtm[i,])[keepers] )
+  } )
 
 t1 <- Sys.time()
-fit <- lda.collapsed.gibbs.sampler(documents = foo,
+fit <- lda.collapsed.gibbs.sampler(documents = lda.input,
                                    K = K, vocab = vocab,
                                    num.iterations = G, alpha = alpha,
                                    eta = eta, initial = NULL, burnin = 0,
