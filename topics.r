@@ -1,46 +1,29 @@
-# read in some stopwords:
+library(jsonlite)
 library(tm)
-stop_words <- append(stopwords("en"), stopwords("SMART"))
 
-fileName <- "data/haskell-chat.txt"
-transcript <- readChar(fileName, file.info(fileName)$size)
+insights <- fromJSON(readLines('data/insights2.json'))$text
+corp <- Corpus(VectorSource(insights))
 
-# pre-processing:
-transcript <- gsub("'", "", transcript)  # remove apostrophes
-transcript <- gsub("[0-9]", "", transcript)  # remove numbers
-transcript <- gsub("[[:punct:]]", " ", transcript)  # replace punctuation with space
-transcript <- gsub("[[:cntrl:]]", " ", transcript)  # replace control characters with space
-transcript <- gsub("^[[:space:]]+", "", transcript) # remove whitespace at beginning of documents
-transcript <- gsub("[[:space:]]+$", "", transcript) # remove whitespace at end of documents
-transcript <- tolower(transcript)  # force to lowercase
-transcript <- gsub("\\b[[:alnum:]]{1,4}\\b", " ", transcript)  # remove short words
+dtm.control <- list(tolower = TRUE,
+                    removePunctuation = TRUE,
+                    removeNumbers = TRUE,
+                    stopwords = c(stopwords("SMART"),
+                                  stopwords("en")),
+                    stemming = TRUE,
+                    wordLengths = c(3, "inf"),
+                    weighting = weightTf)
 
-# tokenize on space and output as a list:
-doc.list <- lapply(strsplit(transcript, "[[:space:]]+"), stemDocument)
+sparse.dtm <- DocumentTermMatrix(corp, control = dtm.control)
+dtm <- as.matrix(sparse.dtm)
+class(dtm) <- "integer"
 
-# compute the table of terms:
-term.table <- table(unlist(doc.list))
-term.table <- sort(term.table, decreasing = TRUE)
-
-# remove terms that are stop words or occur fewer than 5 times:
-del <- names(term.table) %in% stop_words | term.table < 5
-term.table <- term.table[!del]
-vocab <- names(term.table)
-
-# now put the documents into the format required by the lda package:
-get.terms <- function(x) {
-  index <- match(x, vocab)
-  index <- index[!is.na(index)]
-  rbind(as.integer(index - 1), as.integer(rep(1, length(index))))
-}
-documents <- lapply(doc.list, get.terms)
-
+vocab <- sparse.dtm$dimnames$Terms
 # Compute some statistics related to the data set:
-D <- length(documents)  # number of documents (2,000)
-W <- length(vocab)  # number of terms in the vocab (14,568)
-doc.length <- sapply(documents, function(x) sum(x[2, ]))  # number of tokens per document [312, 288, 170, 436, 291, ...]
-N <- sum(doc.length)  # total number of tokens in the data (546,827)
-term.frequency <- as.integer(term.table)  # frequencies of terms in the corpus [8939, 5544, 2411, 2410, 2143, ...]
+D <- length(corp)  # number of documents
+W <- length(vocab)  # number of terms in the vocab
+doc.length <- rowSums(dtm)  # number of tokens per document
+N <- sum(doc.length)  # total number of tokens in the data
+term.frequency <- colSums(dtm)  # frequencies of terms in the corpus
 
 # MCMC and model tuning parameters:
 K <- 20
@@ -50,14 +33,18 @@ eta <- 0.02
 
 # Fit the model:
 library(lda)
-set.seed(357)
+
+foo <- lapply(1:nrow(dtm), function (i) rbind(1:ncol(dtm), t(dtm[i,])) )
+
 t1 <- Sys.time()
-fit <- lda.collapsed.gibbs.sampler(documents = documents, K = K, vocab = vocab,
+fit <- lda.collapsed.gibbs.sampler(documents = foo,
+                                   K = K, vocab = vocab,
                                    num.iterations = G, alpha = alpha,
                                    eta = eta, initial = NULL, burnin = 0,
                                    compute.log.likelihood = TRUE)
 t2 <- Sys.time()
 t2 - t1  # about 24 minutes on laptop
+
 
 theta <- t(apply(fit$document_sums + alpha, 2, function(x) x/sum(x)))
 phi <- t(apply(t(fit$topics) + eta, 2, function(x) x/sum(x)))
